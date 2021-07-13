@@ -97,6 +97,7 @@
             message = new Paho.MQTT.Message("Hello mqtt!!")//set body
             message.destinationName = topic// set topic
             mqtt.send(message)
+            console.log("send msg : " + topic + "   " + message.payloadString)
             // mqtt.unsubscribe(topic) // 取消订阅
         }
 
