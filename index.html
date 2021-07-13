@@ -92,6 +92,7 @@
         }
 
         function onConnect() {
+            console.log('connect success')
             mqtt.subscribe(topic, { qos: 1 }) // 订阅消息
             message = new Paho.MQTT.Message("Hello mqtt!!")//set body
             message.destinationName = topic// set topic
