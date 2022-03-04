@@ -10,58 +10,93 @@
     <!-- paho-mqtt 文档 https://www.eclipse.org/paho/files/jsdoc/Paho.MQTT.Client.html -->
     <script type="text/javascript">
 
-        var host = '//xxx.xxx.xxx.xxx' // 设置当前用户的接入点域名，接入点获取方法请参考接入准备章节文档
-        var port = 80 // WebSocket 协议服务端口，如果是走 HTTPS，设置443端口
+        var host = '//xxxx.xxx.xxx' // 环信MQTT服务器地址 通过console后台[MQTT]->[服务概览]->[服务配置]下[连接地址]获取
+        var port = 80 // 协议服务端口 1883/1884/80/443 通过console后台[MQTT]->[服务概览]->[服务配置]下[连接端口]获取
         var topic = 't/t1' // 需要订阅或发送消息的topic名称
         var useTLS = false // 是否走加密 HTTPS，如果走 HTTPS，设置为 true
         var cleansession = true
-        var deviceId = 'deviceId' // MQTT 用户自定义deviceID
-        var appId = 'TESTAPPID' // 从console控制台获取
+        var deviceId = 'deviceId' // 自定义deviceID
+        var appId = 'appId' // appID 通过console后台[MQTT]->[服务概览]->[服务配置]下[AppID]获取
+        var appClientId = 'appClientId' // 开发者ID 通过console后台[应用概览]->[应用详情]->[开发者ID]下[ Client ID]获取
+        var appClientSecret = 'appClientSecret' // 开发者密钥 通过console后台[应用概览]->[应用详情]->[开发者ID]下[ ClientSecret]获取
         var clientId = deviceId + '@' + appId // deviceID@AppID
         var reconnectTimeout = 2000 // 超时重连时间
-        var username = 'test' // 用户名，在console中注册
-        var password = 'test123' // 用户密码为第一步中申请的token
+        var username = 'test' // 自定义用户名 长度不超过64位即可
+        var password = '' // 用户密码通过getUserToken方法获取
+        var restApiUrl = 'restApiUrl'// 环信MQTT REST API地址 通过console后台[MQTT]->[服务概览]->[服务配置]下[REST API地址]获取
 
+        var appToken = ''// 应用Token
         var mqtt
 
-        // 客户端获取token(password)代码示例如下： 
-        function getAccessToken() {
-            var grantType = 'password'
+        // 客户端获取应用Token 
+        function getAppToken() {
             var request = new XMLHttpRequest()
-            // token 域名
-            var baseUrl = 'a3.easemob.com'
-            // org_name
-            var orgName = 'easemob-test'
-            // app_name
-            var appName = 'ease-test'
             // 拼接token接口
-            var api = `http://${baseUrl}/${orgName}/${appName}/token`
-            var token = ''
+            var api = `${restApiUrl}/openapi/rm/app/token`
             // Post请求
             request.open('post', api)
+            // 设置Content-Type
+            request.setRequestHeader('Content-Type', 'application/json')
 
             request.onreadystatechange = function () {
-                if (request.readyState == 4 && request.status == 200) {
-                    var res = JSON.parse(request.responseText)
-                    //从响应体中解析出token
-                    token = res.access_token
-                    console.log(token, 'accessToken')
-                } else {
-                    throw new Error('请求失败，响应码为' + request.status)
+                if (request.readyState == 4) {
+                    if (request.status == 200) {
+                        var res = JSON.parse(request.responseText)
+                        // 从响应体中解析出appToken
+                        appToken = res.body.access_token
+                        console.log('appToken:', appToken)
+                        getUserToken()
+                    } else {
+                        throw new Error('请求失败，响应码为' + request.status)
+                    }
                 }
             }
 
             var params = {
-                grant_type: grantType,
-                username: 'test',
-                password: 'test1'
+                appClientId: appClientId,
+                appClientSecret: appClientSecret,
             }
             // 发送ajax请求
             request.send(JSON.stringify(params))
         }
 
 
-        // getAccessToken()
+        // 获取用户Token
+        function getUserToken() {
+            var request = new XMLHttpRequest()
+            // 拼接token接口
+            var api = `${restApiUrl}/openapi/rm/user/token`
+            // Post请求
+            request.open('post', api)
+            // 设置Content-Type
+            request.setRequestHeader('Content-Type', 'application/json')
+            // 设置Authorization
+            request.setRequestHeader('Authorization', appToken)
+
+            request.onreadystatechange = function () {
+                if (request.readyState == 4) {
+                    if (request.status == 200) {
+                        var res = JSON.parse(request.responseText)
+                        // 从响应体中解析出userToken
+                        password = res.body.access_token
+                        console.log('userToken:', res.body.access_token)
+                        // 连接MQTT    
+                        MQTTconnect()
+                    } else {
+                        throw new Error('请求失败，响应码为' + request.status)
+                    }
+                }
+            }
+            var params = {
+                username: username,
+                expires_in: 86400, // 过期时间，单位为秒，默认为3天，如需调整，可提工单调整
+                cid: clientId
+            }
+            // 发送ajax请求
+            request.send(JSON.stringify(params))
+        }
+
+        getAppToken()
 
         function MQTTconnect() {
             mqtt = new Paho.MQTT.Client(
@@ -75,6 +110,7 @@
                 onSuccess: onConnect,
                 mqttVersion: 4,
                 cleanSession: cleansession,
+                keepAliveInterval: 45,
                 onFailure: function (message) {
                     setTimeout(MQTTconnect, reconnectTimeout)
                 }
@@ -110,9 +146,6 @@
             var payload = message.payloadString
             console.log("recv msg : " + topic + "   " + payload)
         }
-
-        MQTTconnect()
-
 
     </script>
 </head>
